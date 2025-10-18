@@ -1,10 +1,21 @@
 import 'package:flutter/material.dart';
 
+/// A screen that allows the user to select a surah (chapter) from a list.
+///
+/// This screen features a searchable list of all 114 surahs of the Quran.
+/// Users can search by surah number or name. Tapping on a surah selects it
+/// and returns the surah number to the previous screen.
 class SelectSurahScreen extends StatefulWidget {
-  // Pass the loaded map of Surah names to this screen
+  /// A map of surah numbers (as strings) to their names.
   final Map<String, String> surahNames;
+
+  /// The surah number that is currently selected.
   final int currentSurah;
 
+  /// Creates a [SelectSurahScreen].
+  ///
+  /// - [surahNames]: The map of all surah names.
+  /// - [currentSurah]: The currently selected surah to highlight in the list.
   const SelectSurahScreen({
     super.key,
     required this.surahNames,
@@ -15,10 +26,14 @@ class SelectSurahScreen extends StatefulWidget {
   State<SelectSurahScreen> createState() => _SelectSurahScreenState();
 }
 
+/// The state for the [SelectSurahScreen].
+///
+/// Manages the search functionality and the filtered list of surahs.
 class _SelectSurahScreenState extends State<SelectSurahScreen> {
-  // Add a TextEditingController for the search bar
+  /// Controls the text input for the search bar.
   final TextEditingController _searchController = TextEditingController();
-  // State variable to hold the filtered list of Surahs
+
+  /// The list of surahs displayed to the user, filtered by the search query.
   List<MapEntry<String, String>> _filteredSurahNames = [];
 
   @override
@@ -38,19 +53,24 @@ class _SelectSurahScreenState extends State<SelectSurahScreen> {
     super.dispose();
   }
 
-  // Function to filter the Surah list based on search input
+  /// Filters the list of surahs based on the current search query.
+  ///
+  /// This method is called whenever the text in the search controller changes.
+  /// It updates the `_filteredSurahNames` list to include only the surahs
+  /// that match the query in either their number or name (case-insensitive).
+  /// The filtered list is always kept sorted by surah number.
   void _filterSurahs() {
     final query = _searchController.text.toLowerCase();
     setState(() {
-      _filteredSurahNames =
-          widget.surahNames.entries.where((entry) {
-            final number = entry.key;
-            final name = entry.value.toLowerCase();
-            // Match query against number or name
-            return number.contains(query) || name.contains(query);
-          }).toList()..sort(
-            (a, b) => int.parse(a.key).compareTo(int.parse(b.key)),
-          ); // Keep sorted
+      _filteredSurahNames = widget.surahNames.entries.where((entry) {
+        final number = entry.key;
+        final name = entry.value.toLowerCase();
+        // Match query against number or name
+        return number.contains(query) || name.contains(query);
+      }).toList()
+        ..sort(
+          (a, b) => int.parse(a.key).compareTo(int.parse(b.key)),
+        ); // Keep sorted
     });
   }
 

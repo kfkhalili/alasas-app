@@ -7,17 +7,27 @@ import 'package:mobile_app/screens/quiz_screen.dart';
 import 'package:mobile_app/screens/select_surah_screen.dart';
 import 'package:mobile_app/services/api_service.dart';
 
+/// The main screen of the application, serving as the central hub for users.
+///
+/// From this screen, users can select a quiz type to start a new quiz,
+/// or navigate to change the surah (chapter) they are currently studying.
+/// It displays a list of available quiz modes and the currently selected surah.
 class HomeScreen extends StatefulWidget {
+  /// Creates a const [HomeScreen].
   const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+/// The state for the [HomeScreen].
+///
+/// Manages the UI state, including loading indicators, the currently selected
+/// surah, and interactions with the [ApiService] to start quizzes.
 class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = false;
   final ApiService _apiService = ApiService();
-  int _currentSurah = 2;
+  int _currentSurah = 2; // Default to Surah Al-Baqarah
   Map<String, String> _surahNames = {};
 
   @override
@@ -26,6 +36,11 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadSurahNames();
   }
 
+  /// Loads the names of the surahs from a local JSON asset.
+  ///
+  /// This method reads the `surah_names.json` file from the assets, decodes it,
+  /// and populates the `_surahNames` map. This map is used to display the
+  /// friendly name of the currently selected surah.
   Future<void> _loadSurahNames() async {
     try {
       final String jsonString = await rootBundle.loadString(
@@ -49,6 +64,13 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Starts a new quiz of the specified type.
+  ///
+  /// This function sets the loading state, calls the [ApiService] to fetch the
+  /// quiz data, and then navigates to the [QuizScreen] upon success. It handles
+  /// potential errors by displaying a [SnackBar].
+  ///
+  /// - [quizType]: The type of quiz to be started.
   Future<void> _startQuiz(QuizType quizType) async {
     if (!mounted) {
       return;
@@ -99,6 +121,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Navigates to the [SelectSurahScreen] to allow the user to change the surah.
+  ///
+  /// When a new surah is selected and returned from the [SelectSurahScreen],
+  /// this method updates the `_currentSurah` state to reflect the change.
   Future<void> _changeSurah() async {
     final result = await Navigator.push<int>(
       context,

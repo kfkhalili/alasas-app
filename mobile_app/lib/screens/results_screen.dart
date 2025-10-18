@@ -2,16 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:mobile_app/models/question_model.dart';
 import 'package:mobile_app/screens/review_screen.dart'; // Import new screen
 
+/// A screen that displays the user's quiz results.
+///
+/// This screen shows the final score and provides options to review the answers
+/// or return to the home screen.
 class ResultsScreen extends StatelessWidget {
+  /// The number of correctly answered questions.
   final int score;
-  final List<Question> questions;
-  final List<String> userAnswers; // --- NEW: Accept the user's answers ---
 
+  /// The list of all questions from the quiz.
+  final List<Question> questions;
+
+  /// The list of answers provided by the user.
+  final List<String> userAnswers;
+
+  /// Creates a [ResultsScreen].
+  ///
+  /// - [score]: The user's final score.
+  /// - [questions]: The list of questions that were in the quiz.
+  /// - [userAnswers]: The list of answers the user selected.
   const ResultsScreen({
     super.key,
     required this.score,
     required this.questions,
-    required this.userAnswers, // --- NEW: Add to constructor ---
+    required this.userAnswers,
   });
 
   @override

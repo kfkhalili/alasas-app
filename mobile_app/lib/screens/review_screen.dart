@@ -1,10 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_app/models/question_model.dart';
 
+/// A screen that allows users to review their answers after completing a quiz.
+///
+/// It displays each question, the user's answer, and the correct answer,
+/// highlighting whether the user's answer was correct or not.
 class ReviewScreen extends StatelessWidget {
+  /// The list of questions from the quiz.
   final List<Question> questions;
+
+  /// The list of answers the user provided.
   final List<String> userAnswers;
 
+  /// Creates a [ReviewScreen].
+  ///
+  /// - [questions]: The list of questions to be reviewed.
+  /// - [userAnswers]: The corresponding list of user-submitted answers.
   const ReviewScreen({
     super.key,
     required this.questions,

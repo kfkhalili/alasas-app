@@ -2,19 +2,44 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:mobile_app/models/quiz_model.dart';
 
-// Enum defining the different types of quizzes available
+/// Defines the types of quizzes that can be fetched from the backend.
 enum QuizType {
+  /// A quiz where the user matches a verse (ayah) to its number.
   ayahToNumber,
+
+  /// A quiz where the user identifies the next verse in a sequence.
   nextAyah,
+
+  /// A quiz where the user matches a verse to its English meaning.
   ayahToMeaning,
+
+  /// A quiz where the user matches a concept to the relevant verse.
   conceptToAyah,
+
+  /// A quiz focusing on the diacritics (tashkeel) of a verse.
   diacriticQuiz,
 }
 
+/// A service class for handling API requests to the Supabase backend.
+///
+/// This class encapsulates all communication with Supabase, including fetching
+/// quiz data from Edge Functions.
 class ApiService {
   final _supabase = Supabase.instance.client;
 
-  // Fetches a quiz from the backend based on the type and Surah number
+  /// Fetches a quiz from the backend Supabase Edge Function.
+  ///
+  /// This method constructs a request based on the specified [quizType] and
+  /// [surahNumber], invokes the 'generate-quiz' function, and parses the
+  /// response into a [Quiz] object.
+  ///
+  /// - [quizType]: The type of quiz to fetch, as defined by the [QuizType] enum.
+  /// - [surahNumber]: The surah (chapter) number for which to generate the quiz.
+  ///
+  /// Returns a [Future] that completes with a [Quiz] object on success.
+  ///
+  /// Throws an [Exception] if the request fails, if the backend returns an
+  /// error, or if the response data is malformed.
   Future<Quiz> fetchQuiz(QuizType quizType, int surahNumber) async {
     String quizTypeName;
 
