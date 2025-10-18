@@ -3,6 +3,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import "dotenv/config";
 
+/**
+ * Represents the structure of a single verse to be inserted into the database.
+ */
 interface Verse {
   surah_number: number;
   ayah_number: number;
@@ -10,6 +13,15 @@ interface Verse {
   english_translation: string;
 }
 
+/**
+ * Creates and configures a Supabase client.
+ *
+ * This function reads the Supabase URL and anonymous key from the environment
+ * variables (`.env` file) and uses them to initialize a Supabase client.
+ *
+ * @returns {SupabaseClient} An initialized Supabase client instance.
+ * @throws {Error} If the Supabase URL or key is not found in the environment variables.
+ */
 const createSupabaseClient = (): SupabaseClient => {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_ANON_KEY;
@@ -20,10 +32,20 @@ const createSupabaseClient = (): SupabaseClient => {
   return createClient(supabaseUrl, supabaseKey);
 };
 
+/**
+ * Parses a text file containing Quran verses into a map.
+ *
+ * Each line in the file is expected to be in the format "surah|ayah|text".
+ * This function reads the file, splits it into lines, and parses each line
+ * to create a map where the key is "surah:ayah" and the value is the verse text.
+ * It ignores empty lines and lines starting with '#'.
+ *
+ * @param {string} fileName - The name of the file to parse, located in the `../data` directory.
+ * @returns {Promise<Map<string, string>>} A promise that resolves to a map of verses.
+ */
 const parseVerseFile = async (
   fileName: string
 ): Promise<Map<string, string>> => {
-  // This path is now correctly relative to the location of this script file.
   const filePath = path.join(__dirname, "..", "data", fileName);
   const fileContent = await fs.readFile(filePath, "utf-8");
 
@@ -42,6 +64,19 @@ const parseVerseFile = async (
   return new Map(verses.map((v) => [v.key, v.text]));
 };
 
+/**
+ * Seeds the Supabase database with Quran verses.
+ *
+ * This is the main function of the script. It performs the following steps:
+ * 1. Creates a Supabase client.
+ * 2. Parses both the Arabic and English verse files into maps.
+ * 3. Combines the data from both maps into an array of `Verse` objects.
+ * 4. Deletes all existing data from the `verses` table.
+ * 5. Inserts the new combined verse data into the `verses` table.
+ *
+ * @returns {Promise<void>} A promise that resolves when the database has been successfully seeded.
+ * @throws {Error} If the database insertion fails.
+ */
 const seedDatabase = async (): Promise<void> => {
   console.log("Starting database seed...");
 

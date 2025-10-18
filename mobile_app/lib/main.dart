@@ -3,9 +3,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart'; // Import the package
 import 'package:mobile_app/screens/home_screen.dart';
 
+/// The entry point of the application.
+///
+/// This function initializes the Flutter binding, loads environment variables
+/// from the `.env` file, and initializes the Supabase client. It also performs
+/// an anonymous sign-in to Supabase before running the main application widget,
+/// [AlAsasApp].
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Load environment variables from the .env file
   await dotenv.load(fileName: ".env");
 
   // --- NEW: Get credentials from dotenv ---
@@ -31,7 +38,14 @@ Future<void> main() async {
   runApp(const AlAsasApp());
 }
 
+/// The root widget of the Al-Asas application.
+///
+/// This widget sets up the [MaterialApp], defining the application's title,
+/// theme (both light and dark), and the initial route. It configures a
+/// system-responsive theme and sets the [HomeScreen] as the entry point of the
+/// user interface.
 class AlAsasApp extends StatelessWidget {
+  /// Creates a const [AlAsasApp].
   const AlAsasApp({super.key});
 
   @override
