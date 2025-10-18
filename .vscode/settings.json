@@ -1,0 +1,15 @@
+{
+  // This tells VSCode to only use Deno for your functions folder
+  "deno.enablePaths": ["backend/supabase/functions"],
+
+  // This tells the Deno extension where to find your import map
+  "deno.config": "./backend/supabase/functions/deno.json",
+
+  "deno.lint": true,
+  "deno.unstable": [],
+
+  // This sets Deno as the default formatter for TS files
+  "[typescript]": {
+    "editor.defaultFormatter": "denoland.vscode-deno"
+  }
+}

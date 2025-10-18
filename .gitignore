@@ -1,0 +1,20 @@
+# Generic
+.DS_Store
+.env
+*/node_modules
+
+# Supabase
+/backend/supabase/.branches
+/backend/supabase/.temp
+/backend/supabase/functions/.output
+/backend/supabase/functions/node_modules
+
+# Flutter
+/mobile_app/.dart_tool/
+/mobile_app/.idea/
+/mobile_app/.metadata
+/mobile_app/build/
+/mobile_app/*.iml
+/mobile_app/.flutter-plugins
+/mobile_app/.flutter-plugins-dependencies
+/mobile_app/pubspec.lock
