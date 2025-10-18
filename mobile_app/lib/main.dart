@@ -37,7 +37,7 @@ class AlAsasApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Al-Asas',
+      title: 'Alasas',
       theme: ThemeData(
         brightness: Brightness.light,
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
