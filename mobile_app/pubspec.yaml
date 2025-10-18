@@ -11,8 +11,8 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   supabase_flutter: ^2.10.3
-  flutter_dotenv: ^5.1.0 # Ensure this package is listed
-  animations: ^2.1.0
+  flutter_dotenv: ^5.1.0
+  animations: ^2.1.0 # Ensure animations is listed
 
 dev_dependencies:
   flutter_test:
@@ -22,9 +22,9 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # Add the .env file as an asset
   assets:
     - .env
+    - assets/data/surah_names.json # --- ADD THIS LINE ---
 
   fonts:
     - family: NotoNaskhArabic

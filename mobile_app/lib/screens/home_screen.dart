@@ -1,7 +1,10 @@
-import 'dart:ui'; // Needed for ImageFilter
+import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:animations/animations.dart';
 import 'package:mobile_app/screens/quiz_screen.dart';
+import 'package:mobile_app/screens/select_surah_screen.dart'; // --- Import the new screen ---
 import 'package:mobile_app/services/api_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -14,19 +17,47 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = false;
   final ApiService _apiService = ApiService();
+  int _currentSurah = 2;
+  Map<String, String> _surahNames = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSurahNames();
+  }
+
+  Future<void> _loadSurahNames() async {
+    try {
+      final String jsonString = await rootBundle.loadString(
+        'assets/data/surah_names.json',
+      );
+      final Map<String, dynamic> jsonMap = jsonDecode(jsonString);
+      if (mounted) {
+        setState(() {
+          _surahNames = jsonMap.map(
+            (key, value) => MapEntry(key, value.toString()),
+          );
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading Surah names: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not load Surah names.')),
+        );
+      }
+    }
+  }
 
   Future<void> _startQuiz(QuizType quizType) async {
+    // ... (startQuiz logic remains the same) ...
+    if (!mounted) return;
     setState(() {
-      _isLoading = true; // Start loading (blur)
+      _isLoading = true;
     });
-
     try {
-      final quiz = await _apiService.fetchQuiz(quizType);
-
+      final quiz = await _apiService.fetchQuiz(quizType, _currentSurah);
       if (!mounted) return;
-
-      // --- AWAIT the navigation ---
-      // Keep loading state until the new screen is pushed
       await Navigator.push(
         context,
         PageRouteBuilder(
@@ -45,12 +76,15 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.toString())));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Error: ${e.toString().replaceFirst("Exception: ", "")}',
+          ),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
     } finally {
-      // --- Set loading to false AFTER navigation ---
-      // This ensures the blur stays until the transition is done
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -59,12 +93,38 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // --- MODIFIED: Navigate to SelectSurahScreen ---
+  Future<void> _changeSurah() async {
+    // Navigate and wait for a result (the selected Surah number)
+    final result = await Navigator.push<int>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SelectSurahScreen(
+          surahNames: _surahNames,
+          currentSurah: _currentSurah,
+        ),
+      ),
+    );
+
+    // If a new Surah was selected (result is not null and different)
+    if (result != null && result != _currentSurah) {
+      if (mounted) {
+        setState(() {
+          _currentSurah = result; // Update the current Surah
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final buttonStyle = ElevatedButton.styleFrom(
       padding: const EdgeInsets.symmetric(vertical: 16),
       textStyle: const TextStyle(fontSize: 18),
     );
+    final String currentSurahName =
+        _surahNames[_currentSurah.toString()] ?? 'Surah $_currentSurah';
 
     return Scaffold(
       body: Stack(
@@ -72,66 +132,91 @@ class _HomeScreenState extends State<HomeScreen> {
           Center(
             child: Padding(
               padding: const EdgeInsets.all(24.0),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    ElevatedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () => _startQuiz(QuizType.ayahToMeaning),
-                      style: buttonStyle,
-                      child: const Text('Ayah to Meaning Quiz'),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        // Allow text to wrap if name is long
+                        child: Text(
+                          'Studying: $currentSurahName',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
+                          overflow: TextOverflow
+                              .ellipsis, // Prevent long names from breaking layout
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: _isLoading ? null : _changeSurah,
+                        child: const Text('Change'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 30),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ElevatedButton(
+                            onPressed: _isLoading
+                                ? null
+                                : () => _startQuiz(QuizType.ayahToMeaning),
+                            style: buttonStyle,
+                            child: const Text('Ayah to Meaning Quiz'),
+                          ),
+                          const SizedBox(height: 20),
+                          ElevatedButton(
+                            onPressed: _isLoading
+                                ? null
+                                : () => _startQuiz(QuizType.ayahToNumber),
+                            style: buttonStyle,
+                            child: const Text('Ayah to Number Quiz'),
+                          ),
+                          const SizedBox(height: 20),
+                          ElevatedButton(
+                            onPressed: _isLoading
+                                ? null
+                                : () => _startQuiz(QuizType.nextAyah),
+                            style: buttonStyle,
+                            child: const Text('Next Ayah Quiz'),
+                          ),
+                          const SizedBox(height: 20),
+                          ElevatedButton(
+                            onPressed: _isLoading
+                                ? null
+                                : () => _startQuiz(QuizType.conceptToAyah),
+                            style: buttonStyle,
+                            child: const Text('Concept Quiz'),
+                          ),
+                          const SizedBox(height: 20),
+                          ElevatedButton(
+                            onPressed: _isLoading
+                                ? null
+                                : () => _startQuiz(QuizType.diacriticQuiz),
+                            style: buttonStyle,
+                            child: const Text('Diacritic Quiz'),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () => _startQuiz(QuizType.ayahToNumber),
-                      style: buttonStyle,
-                      child: const Text('Ayah to Number Quiz'),
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () => _startQuiz(QuizType.nextAyah),
-                      style: buttonStyle,
-                      child: const Text('Next Ayah Quiz'),
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () => _startQuiz(QuizType.conceptToAyah),
-                      style: buttonStyle,
-                      child: const Text('Concept Quiz'),
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () => _startQuiz(QuizType.diacriticQuiz),
-                      style: buttonStyle,
-                      child: const Text('Diacritic Quiz'),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
-          // --- Blur Overlay ---
           if (_isLoading)
             Positioned.fill(
-              // Ensure overlay covers the whole screen
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
                 child: Container(
                   color: Colors.black.withAlpha(26),
                   alignment: Alignment.center,
-                  // Optional: Add a subtle loading indicator *over* the blur
-                  // child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               ),
             ),
