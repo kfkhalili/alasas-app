@@ -44,7 +44,7 @@ class ApiService {
         body: {
           'quizType': quizTypeName,
           'surahNumber': surahNumber, // Pass the selected Surah
-          'questionCount': 10, // Keep question count fixed for now
+          'questionCount': 3, // Keep question count fixed for now
         },
       );
 

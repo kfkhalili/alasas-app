@@ -18,9 +18,27 @@ class _QuizScreenState extends State<QuizScreen> {
   int _score = 0;
   final List<String> _userAnswers = [];
 
+  late final ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   Question get _currentQuestion => widget.quiz.questions[_currentIndex];
 
   void _handleAnswer(String answer) {
+    if (!mounted) {
+      return;
+    }
+
     setState(() {
       _selectedAnswer = answer;
       _isAnswered = true;
@@ -32,12 +50,16 @@ class _QuizScreenState extends State<QuizScreen> {
     });
 
     Future.delayed(const Duration(milliseconds: 1500), () {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
+
       if (_currentIndex < widget.quiz.questions.length - 1) {
         setState(() {
           _currentIndex++;
           _isAnswered = false;
           _selectedAnswer = null;
+          _scrollController.jumpTo(0.0); // Instantly jump to top
         });
       } else {
         Navigator.pushReplacement(
@@ -56,24 +78,36 @@ class _QuizScreenState extends State<QuizScreen> {
 
   Color _getButtonColor(BuildContext context, String option) {
     final theme = Theme.of(context);
-    if (!_isAnswered) return theme.colorScheme.secondaryContainer;
-    if (option == _currentQuestion.correctAnswer) return Colors.green;
-    if (option == _selectedAnswer) return theme.colorScheme.error;
-    return theme.colorScheme.secondaryContainer.withOpacity(0.5);
+    if (!_isAnswered) {
+      return theme.colorScheme.secondaryContainer;
+    }
+    if (option == _currentQuestion.correctAnswer) {
+      return Colors.green;
+    }
+    if (option == _selectedAnswer) {
+      return theme.colorScheme.error;
+    }
+    return theme.colorScheme.secondaryContainer.withAlpha(128);
   }
 
   Color _getTextColor(BuildContext context, String option) {
     final theme = Theme.of(context);
-    if (!_isAnswered) return theme.colorScheme.onSecondaryContainer;
-    if (option == _currentQuestion.correctAnswer) return Colors.white;
-    if (option == _selectedAnswer) return theme.colorScheme.onError;
-    return theme.colorScheme.onSecondaryContainer.withOpacity(0.7);
+    if (!_isAnswered) {
+      return theme.colorScheme.onSecondaryContainer;
+    }
+    if (option == _currentQuestion.correctAnswer) {
+      return Colors.white;
+    }
+    if (option == _selectedAnswer) {
+      return theme.colorScheme.onError;
+    }
+    return theme.colorScheme.onSecondaryContainer.withAlpha(179);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isQuestionArabic = _currentQuestion.questionText.contains(
+    final bool isQuestionArabic = _currentQuestion.questionText.contains(
       RegExp(r'[\u0600-\u06FF]'),
     );
 
@@ -84,23 +118,20 @@ class _QuizScreenState extends State<QuizScreen> {
         ),
       ),
       body: SingleChildScrollView(
+        // --- NEW: Attach the controller ---
+        controller: _scrollController,
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          // --- USE AnimatedSwitcher ---
           child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300), // Slide speed
+            duration: const Duration(milliseconds: 300),
             transitionBuilder: (Widget child, Animation<double> animation) {
-              // Create a slide transition
               final offsetAnimation = Tween<Offset>(
-                begin: const Offset(1.0, 0.0), // Slide in from the right
+                begin: const Offset(1.0, 0.0),
                 end: Offset.zero,
               ).animate(animation);
               return SlideTransition(position: offsetAnimation, child: child);
             },
-            // The child depends on the current index
             child: Column(
-              // --- ADD A UNIQUE KEY ---
-              // The key tells AnimatedSwitcher that the child *has* changed
               key: ValueKey<int>(_currentIndex),
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -111,7 +142,7 @@ class _QuizScreenState extends State<QuizScreen> {
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: theme.shadowColor.withOpacity(0.1),
+                        color: theme.shadowColor.withAlpha(26),
                         blurRadius: 5,
                         offset: const Offset(0, 2),
                       ),
