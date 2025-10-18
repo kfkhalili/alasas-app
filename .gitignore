@@ -4,6 +4,7 @@
 */node_modules
 
 # Supabase
+/backend/node_modules
 /backend/supabase/.branches
 /backend/supabase/.temp
 /backend/supabase/functions/.output
