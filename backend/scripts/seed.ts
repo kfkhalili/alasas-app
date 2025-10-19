@@ -1,124 +1,259 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import fs from "node:fs/promises";
-import path from "node:path";
 import "dotenv/config";
+import * as fs from "fs";
+import * as path from "path";
 
-/**
- * Represents the structure of a single verse to be inserted into the database.
- */
-interface Verse {
+// Import the QUL data files
+import uthmaniData from "../data/uthmani.json";
+import mushafPagesData from "../data/mushaf-pages.json";
+
+// --- Type Definitions ---
+// For uthmani.json
+interface UthmaniWord {
+  id: number;
+  surah: string;
+  ayah: string;
+  word: string;
+  location: string;
+  text: string;
+}
+
+// For mushaf-pages.json
+interface MushafPageLine {
+  page_number: number;
+  line_number: number;
+  line_type: string;
+  is_centered: number;
+  first_word_id: number | null;
+  last_word_id: number | null;
+  surah_number: number | null;
+}
+
+// For DB tables
+interface VerseInsert {
   surah_number: number;
   ayah_number: number;
   arabic_text: string;
   english_translation: string;
 }
+interface VerseRecord {
+  id: number;
+  surah_number: number;
+  ayah_number: number;
+}
+// This type matches the 'verse_page_update' type in our SQL migration
+interface VersePageUpdate {
+  verse_id: number;
+  p_num: number;
+}
+interface WordInsert {
+  verse_id: number;
+  position: number;
+  arabic_text: string;
+  page_number: number;
+  qul_word_id: number;
+}
+// --- End of Types ---
 
-/**
- * Creates and configures a Supabase client.
- *
- * This function reads the Supabase URL and anonymous key from the environment
- * variables (`.env` file) and uses them to initialize a Supabase client.
- *
- * @returns {SupabaseClient} An initialized Supabase client instance.
- * @throws {Error} If the Supabase URL or key is not found in the environment variables.
- */
-const createSupabaseClient = (): SupabaseClient => {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const BATCH_SIZE = 500;
 
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error("Supabase URL and Key must be provided in .env file.");
+// --- Batch Insert Utility ---
+async function batchInsert<T_Insert, T_Return>(
+  supabase: SupabaseClient,
+  table: string,
+  data: T_Insert[],
+  select = "*",
+): Promise<T_Return[]> {
+  const insertedData: T_Return[] = [];
+  for (let i = 0; i < data.length; i += BATCH_SIZE) {
+    const batch = data.slice(i, i + BATCH_SIZE);
+    const { data: inserted, error } = await supabase
+      .from(table)
+      .insert(batch)
+      .select(select);
+    if (error) {
+      throw new Error(`Error inserting batch into ${table}: ${error.message}`);
+    }
+    if (inserted) {
+      insertedData.push(...(inserted as T_Return[]));
+    }
   }
-  return createClient(supabaseUrl, supabaseKey);
-};
+  return insertedData;
+}
 
-/**
- * Parses a text file containing Quran verses into a map.
- *
- * Each line in the file is expected to be in the format "surah|ayah|text".
- * This function reads the file, splits it into lines, and parses each line
- * to create a map where the key is "surah:ayah" and the value is the verse text.
- * It ignores empty lines and lines starting with '#'.
- *
- * @param {string} fileName - The name of the file to parse, located in the `../data` directory.
- * @returns {Promise<Map<string, string>>} A promise that resolves to a map of verses.
- */
-const parseVerseFile = async (
-  fileName: string
-): Promise<Map<string, string>> => {
-  const filePath = path.join(__dirname, "..", "data", fileName);
-  const fileContent = await fs.readFile(filePath, "utf-8");
+// --- PHASE 1: Original Seed Logic (for "Test" Mode) ---
+async function seedOriginalVerses(
+  supabase: SupabaseClient,
+): Promise<Map<string, number>> {
+  console.log("--- Phase 1: Seeding original verses (for Test mode) ---");
 
-  const verses = fileContent
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && !line.startsWith("#"))
-    .map((line) => {
-      const [surah, ayah, ...textParts] = line.split("|");
-      return {
-        key: `${surah}:${ayah}`,
-        text: textParts.join("|").trim(),
-      };
-    });
+  console.log("Clearing old data...");
+  await supabase.from("quran_words").delete().neq("id", 0);
+  await supabase.from("questions").delete().neq("verse_id", 0);
+  await supabase.from("verses").delete().neq("id", 0);
+  console.log("Old data cleared.");
 
-  return new Map(verses.map((v) => [v.key, v.text]));
-};
+  // Read file data from /backend/data/
+  const quranTextPath = path.join(__dirname, "../data/quran-simple.txt");
+  const englishTextPath = path.join(__dirname, "../data/en.sahih.txt");
+  const quranLines = fs.readFileSync(quranTextPath, "utf-8").split("\n");
+  const englishLines = fs.readFileSync(englishTextPath, "utf-8").split("\n");
 
-/**
- * Seeds the Supabase database with Quran verses.
- *
- * This is the main function of the script. It performs the following steps:
- * 1. Creates a Supabase client.
- * 2. Parses both the Arabic and English verse files into maps.
- * 3. Combines the data from both maps into an array of `Verse` objects.
- * 4. Deletes all existing data from the `verses` table.
- * 5. Inserts the new combined verse data into the `verses` table.
- *
- * @returns {Promise<void>} A promise that resolves when the database has been successfully seeded.
- * @throws {Error} If the database insertion fails.
- */
-const seedDatabase = async (): Promise<void> => {
-  console.log("Starting database seed...");
+  const versesToInsert: VerseInsert[] = [];
+  for (let i = 0; i < quranLines.length; i++) {
+    const arabicLine = quranLines[i];
+    const englishLine = englishLines[i];
+    if (!arabicLine || !englishLine) continue;
+    const [surah, ayah, arabicText] = arabicLine.split("|");
+    const [, , englishText] = englishLine.split("|");
+    if (surah && ayah && arabicText && englishText) {
+      versesToInsert.push({
+        surah_number: parseInt(surah, 10),
+        ayah_number: parseInt(ayah, 10),
+        arabic_text: arabicText,
+        english_translation: englishText,
+      });
+    }
+  }
 
-  const supabase = createSupabaseClient();
-
-  const [arabicMap, englishMap] = await Promise.all([
-    parseVerseFile("quran-simple.txt"),
-    parseVerseFile("en.sahih.txt"),
-  ]);
-
-  console.log(
-    `Parsed ${arabicMap.size} Arabic and ${englishMap.size} English verses.`
+  console.log(`Inserting ${versesToInsert.length} original verses...`);
+  const insertedVerses = await batchInsert<VerseInsert, VerseRecord>(
+    supabase,
+    "verses",
+    versesToInsert,
+    "id, surah_number, ayah_number",
   );
+  console.log("Original verses inserted.");
 
-  const verses: Verse[] = Array.from(arabicMap.keys()).map((key) => {
-    const [surah, ayah] = key.split(":").map(Number);
-    const arabicText = arabicMap.get(key) ?? "";
-    const englishTranslation = englishMap.get(key) ?? "";
-
-    return {
-      surah_number: surah,
-      ayah_number: ayah,
-      arabic_text: arabicText,
-      english_translation: englishTranslation,
-    };
+  // Create the verse ID map for Phase 2
+  const verseIdMap = new Map<string, number>();
+  insertedVerses.forEach((v) => {
+    verseIdMap.set(`${v.surah_number}:${v.ayah_number}`, v.id);
   });
 
-  console.log(`Preparing to insert ${verses.length} combined verses...`);
+  console.log("--- Phase 1 Complete ---");
+  return verseIdMap;
+}
 
-  await supabase.from("verses").delete().neq("id", 0);
-  console.log("Cleared existing verses from the table.");
+// --- PHASE 2: New QUL Data Seed (for "Memorize" Mode) ---
+async function seedQulData(
+  supabase: SupabaseClient,
+  verseIdMap: Map<string, number>,
+) {
+  console.log("--- Phase 2: Seeding QUL word data (for Memorize mode) ---");
 
-  const { error } = await supabase.from("verses").insert(verses);
+  // 1. Create Word-to-Page Map from mushaf-pages.json
+  console.log("Building word-to-page map...");
+  const wordIdToPageMap = new Map<number, number>();
+  (mushafPagesData as MushafPageLine[]).forEach((line) => {
+    if (line.first_word_id && line.last_word_id) {
+      for (let id = line.first_word_id; id <= line.last_word_id; id++) {
+        wordIdToPageMap.set(id, line.page_number);
+      }
+    }
+  });
+  console.log(`Page map built with ${wordIdToPageMap.size} word entries.`);
 
-  if (error) {
-    throw new Error(`Failed to insert verses: ${error.message}`);
+  // 2. Prepare 'quran_words' inserts and 'verses' updates
+  const wordsToInsert: WordInsert[] = [];
+  const versePageMap = new Map<number, number>();
+  const allUthmaniWords = Object.values(
+    uthmaniData as Record<string, UthmaniWord>,
+  );
+
+  console.log(
+    `Processing ${allUthmaniWords.length} words from uthmani.json...`,
+  );
+  allUthmaniWords.forEach((word) => {
+    const verseKey = `${word.surah}:${word.ayah}`;
+    const verseId = verseIdMap.get(verseKey);
+    const pageNumber = wordIdToPageMap.get(word.id);
+    const position = parseInt(word.word, 10);
+
+    // Skip words with no verse match or no page match (e.g., '١' markers)
+    if (!verseId || !pageNumber || isNaN(position)) {
+      return;
+    }
+
+    // Add to quran_words batch
+    wordsToInsert.push({
+      verse_id: verseId,
+      position: position,
+      arabic_text: word.text,
+      page_number: pageNumber,
+      qul_word_id: word.id,
+    });
+
+    // Store the page number for this verse (first word wins)
+    if (position === 1 && !versePageMap.has(verseId)) {
+      versePageMap.set(verseId, pageNumber);
+    }
+  });
+
+  // 3. Batch insert 'quran_words'
+  console.log(`Inserting ${wordsToInsert.length} words into quran_words...`);
+  await batchInsert<WordInsert, { id: number }>(
+    supabase,
+    "quran_words",
+    wordsToInsert,
+    "id",
+  );
+  console.log("Words inserted.");
+
+  // 4. Batch UPDATE 'verses' with page numbers using RPC
+  // This is the FIX
+  const versesToUpdate: VersePageUpdate[] = Array.from(
+    versePageMap.entries(),
+  ).map(([id, page_number]) => ({
+    verse_id: id,
+    p_num: page_number,
+  }));
+
+  console.log(
+    `Updating ${versesToUpdate.length} verses with page numbers via RPC...`,
+  );
+
+  // We still batch the RPC call just in case the payload is too large
+  for (let i = 0; i < versesToUpdate.length; i += BATCH_SIZE) {
+    const batch = versesToUpdate.slice(i, i + BATCH_SIZE);
+
+    const { error } = await supabase.rpc("bulk_update_verse_pages", {
+      updates: batch,
+    });
+
+    if (error) {
+      throw new Error(
+        `Error calling RPC bulk_update_verse_pages: ${error.message}`,
+      );
+    }
   }
 
-  console.log(`Successfully seeded ${verses.length} verses into the database.`);
-};
+  console.log("Verse page numbers updated.");
+  console.log("--- Phase 2 Complete ---");
+}
 
-seedDatabase().catch((error) => {
-  console.error("Database seeding failed:", error);
-  process.exit(1);
-});
+// --- Main Execution ---
+async function main(): Promise<void> {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error(
+      "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in .env file",
+    );
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  console.log("--- Starting Al-Asas Combined Data Seed ---");
+
+  try {
+    const verseIdMap = await seedOriginalVerses(supabase);
+    await seedQulData(supabase, verseIdMap);
+    console.log("--- Combined Seed Complete ---");
+  } catch (error) {
+    console.error("Error during seeding:", error);
+    process.exit(1);
+  }
+}
+
+main().catch(console.error);
